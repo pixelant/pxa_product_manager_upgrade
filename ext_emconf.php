@@ -1,15 +1,14 @@
 <?php
 
 $EM_CONF[$_EXTKEY] = [
-    'title' => 't3kit_upgrade',
-    'description' => 't3kit upgrade project.',
+    'title' => 'pxa_product_manager_upgrade',
+    'description' => 'pxa_product_manager_upgrade',
     'version' => '10.0.0',
     'category' => 'templates',
     'constraints' => [
         'depends' => [
             'typo3' => '10.4.0-10.4.99',
-            'php' => '7.4.0-7.4.99',
-            't3kit' => '10.0.0-10.4.99'
+            'pxa_product_manager' => '10.0.0-10.4.99'
         ],
         'conflicts' => [
             'css_styled_content' => '*',
@@ -25,7 +24,7 @@ $EM_CONF[$_EXTKEY] = [
     'author_company' => '',
     'autoload' => [
         'psr-4' => [
-            'T3k\\T3kitUpgrade\\' => 'Classes'
+            'Pixelant\\PxaProductManagerUpgrade\\' => 'Classes'
         ],
     ],
 ];

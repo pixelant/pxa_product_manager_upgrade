@@ -14,7 +14,7 @@ use TYPO3\CMS\Core\Utility\StringUtility;
 use TYPO3\CMS\Install\Updates\ChattyInterface;
 use TYPO3\CMS\Install\Updates\UpgradeWizardInterface;
 
-class AttributeSetAttributeMmUpdateWizard implements UpgradeWizardInterface, ChattyInterface
+class ProductSubProductsProductMmUpdateWizard implements UpgradeWizardInterface, ChattyInterface
 {
 
     protected const KEY_MIGRATED_PAGE = '_migratedToPage';
@@ -34,7 +34,7 @@ class AttributeSetAttributeMmUpdateWizard implements UpgradeWizardInterface, Cha
      */
     public function getIdentifier(): string
     {
-        return 'productmanager_AttributeSetAttributeMmUpdateWizard';
+        return 'productmanager_ProductSubProductsProductMmUpdateWizard';
     }
 
     /**
@@ -44,7 +44,7 @@ class AttributeSetAttributeMmUpdateWizard implements UpgradeWizardInterface, Cha
      */
     public function getTitle(): string
     {
-        return 'Migrate AttributeSet Attribute MM table update wizard.';
+        return 'Migrate Product SubProducts Product MM table update wizard.';
     }
 
     /**
@@ -54,7 +54,7 @@ class AttributeSetAttributeMmUpdateWizard implements UpgradeWizardInterface, Cha
      */
     public function getDescription(): string
     {
-        return 'Migrates AttributeSet Attribute MM table.';
+        return 'Migrates Product SubProducts Product MM table.';
     }
 
     /**
@@ -66,7 +66,7 @@ class AttributeSetAttributeMmUpdateWizard implements UpgradeWizardInterface, Cha
      */
     public function executeUpdate(): bool
     {
-        $mmRecords = $this->fetchAttributeSetAttributeMmRecords();
+        $mmRecords = $this->fetchProductSubProductsProductMmRecords();
         foreach ($mmRecords as $mmRecord) {
             if (empty($mmRecord['tparm_uid_local'])) {
                 $this->createNewMmRelation($mmRecord);
@@ -115,7 +115,7 @@ class AttributeSetAttributeMmUpdateWizard implements UpgradeWizardInterface, Cha
     protected function countMissingRecords(): int
     {
         $cnt = 0;
-        $mmRecords = $this->fetchAttributeSetAttributeMmRecords();
+        $mmRecords = $this->fetchProductSubProductsProductMmRecords();
         foreach ($mmRecords as $mmRecord) {
             if (empty($mmRecord['tparm_uid_local'])) {
                 $cnt++;
@@ -130,7 +130,7 @@ class AttributeSetAttributeMmUpdateWizard implements UpgradeWizardInterface, Cha
      *
      * @return array
      */
-    protected function fetchAttributeSetAttributeMmRecords(): array
+    protected function fetchProductSubProductsProductMmRecords(): array
     {
         $fields = [
             'tpaam.uid_local as tpaam_uid_local',
@@ -147,13 +147,13 @@ class AttributeSetAttributeMmUpdateWizard implements UpgradeWizardInterface, Cha
 
         /** @var QueryBuilder $queryBuilder */
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-            ->getQueryBuilderForTable('tx_pxaproductmanager_attributeset_attribute_mm');
+            ->getQueryBuilderForTable('tx_pxaproductmanager_product_subproducts_product_mm');
         $queryBuilder->getRestrictions()->removeAll();
         $records = $queryBuilder->select(...$fields)
-            ->from('tx_pxaproductmanager_attributeset_attribute_mm', 'tpaam')
+            ->from('tx_pxaproductmanager_product_subproducts_product_mm', 'tpaam')
             ->leftJoin(
                 'tpaam',
-                'tx_pxaproductmanager_attributeset_record_mm',
+                'tx_pxaproductmanager_product_product_mm',
                 'tparm',
                 $queryBuilder->expr()->andX(
                     $queryBuilder->expr()->eq(
@@ -166,11 +166,11 @@ class AttributeSetAttributeMmUpdateWizard implements UpgradeWizardInterface, Cha
                     ),
                     $queryBuilder->expr()->eq(
                         'tparm.tablenames',
-                        $queryBuilder->createNamedParameter('tx_pxaproductmanager_domain_model_attribute', \PDO::PARAM_STR)
+                        $queryBuilder->createNamedParameter('tx_pxaproductmanager_domain_model_product', \PDO::PARAM_STR)
                     ),
                     $queryBuilder->expr()->eq(
                         'tparm.fieldname',
-                        $queryBuilder->createNamedParameter('attributes', \PDO::PARAM_STR)
+                        $queryBuilder->createNamedParameter('related_products', \PDO::PARAM_STR)
                     )
                 )
             )
@@ -184,16 +184,16 @@ class AttributeSetAttributeMmUpdateWizard implements UpgradeWizardInterface, Cha
 
     protected function createNewMmRelation(array $record): void
     {
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_pxaproductmanager_attributeset_record_mm');
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_pxaproductmanager_product_product_mm');
         $queryBuilder
-            ->insert('tx_pxaproductmanager_attributeset_record_mm')
+            ->insert('tx_pxaproductmanager_product_product_mm')
             ->values([
                 'uid_local' => $record['tpaam_uid_local'],
                 'uid_foreign' => $record['tpaam_uid_foreign'],
                 'sorting' => $record['tpaam_sorting'],
                 'sorting_foreign' => $record['tpaam_sorting_foreign'],
-                'tablenames' => 'tx_pxaproductmanager_domain_model_attribute',
-                'fieldname' => 'attributes'
+                'tablenames' => 'tx_pxaproductmanager_domain_model_product',
+                'fieldname' => 'related_products'
             ])
             ->execute();
     }
