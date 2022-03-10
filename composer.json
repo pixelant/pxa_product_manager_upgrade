@@ -1,0 +1,65 @@
+{
+  "name": "pixelant/pxa-product-manager-upgrade",
+  "description": "Contains some upgrade wizards to upgrade pxa_product_manager. WIP project",
+  "type": "typo3-cms-extension",
+  "keywords": [
+    "typo3",
+    "pxa_product_manager"
+  ],
+  "homepage": "http://t3kit.com",
+  "license": "GPL-2.0-or-later",
+  "authors": [
+    {
+      "name": "t3kit Community",
+      "homepage": "https://github.com/t3kit"
+    }
+  ],
+  "support": {
+    "issues": "https://github.com/t3kit/t3kit/issues",
+    "forum": "https://typo3.slack.com/messages/t3kit",
+    "source": "https://github.com/t3kit/t3kit",
+    "docs": "https://github.com/t3kit/t3kit"
+  },
+  "require": {
+    "typo3/cms-backend": "^10.4.6",
+    "typo3/cms-core": "^10.4.6",
+    "typo3/cms-extbase": "^10.4.6",
+    "typo3/cms-extensionmanager": "^10.4.6",
+    "typo3/cms-filelist": "^10.4.6",
+    "typo3/cms-filemetadata": "^10.4.6",
+    "typo3/cms-fluid": "^10.4.6",
+    "typo3/cms-frontend": "^10.4.6",
+    "typo3/cms-install": "^10.4.6",
+    "typo3/cms-recordlist": "^10.4.6",
+    "typo3/cms-form": "^10.4.6",
+    "typo3/cms-rte-ckeditor": "^10.4.6",
+    "typo3/cms-seo": "^10.4.6",
+    "typo3/cms-tstemplate": "^10.4.6",
+    "typo3/cms-felogin": "^10.4.6",
+    "pixelant/pxa-product-manager": "^10.0"
+  },
+  "require-dev": {
+    "editorconfig-checker/editorconfig-checker": "~10.2.3",
+    "squizlabs/php_codesniffer": "~3.6.0",
+    "helmich/typo3-typoscript-lint": "~2.5.0",
+    "sclable/xml-lint": "~0.4.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Pixelant\\PxaProductManagerUpgrade\\": "Classes"
+    }
+  },
+  "prefer-stable": true,
+  "config": {
+    "vendor-dir": "build/vendor",
+    "optimize-autoloader": true,
+    "sort-packages": true
+  },
+  "extra": {
+    "typo3/cms": {
+        "web-dir": "build/public",
+        "app-dir": "build",
+        "extension-key": "pxa_product_manager_upgrade"
+    }
+  }
+}
