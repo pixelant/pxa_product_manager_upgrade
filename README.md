@@ -16,7 +16,7 @@ Add to project repo composer.json "repositories" section.
 And to "require-dev":
 
 ```
-"pixelant/pxa_product_manager_upgrade": "dev-master",
+"pixelant/pxa-product-manager-upgrade": "dev-master",
 ```
 
 And run something like:

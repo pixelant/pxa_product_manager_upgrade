@@ -74,8 +74,13 @@ class ProductTypeFromCategoryUpdateWizard implements UpgradeWizardInterface, Cha
         }
 
         $mappings = $this->fetchMappingRecords();
+        $cnt = count($mappings);
+        if ($cnt > 0) {
+            $this->output->writeln('There are ' . $cnt . ' mappings left.');
+            $this->output->writeln(print_r($mappings, true));
+        }
 
-        return count($mappings) == 0;
+        return $cnt == 0;
     }
 
     /**
@@ -232,7 +237,7 @@ class ProductTypeFromCategoryUpdateWizard implements UpgradeWizardInterface, Cha
             'product_type' => $productTypeId,
         ];
 
-        echo PHP_EOL . 'data: ' . print_r($data, true) . PHP_EOL;
+        // echo PHP_EOL . 'data: ' . print_r($data, true) . PHP_EOL;
 
         // Disable DataHandler hooks for processing this update.
         if (!empty($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php'])) {

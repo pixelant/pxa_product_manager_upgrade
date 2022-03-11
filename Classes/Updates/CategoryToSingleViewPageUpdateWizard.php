@@ -112,6 +112,11 @@ class CategoryToSingleViewPageUpdateWizard implements UpgradeWizardInterface, Ch
      */
     public function updateNecessary(): bool
     {
+        $migratedProductPages = $this->fetchMigratedProductPages();
+        if (empty($migratedProductPages)) {
+            return true;
+        }
+
         $cnt = $this->getProductsToMigrate();
         $this->clearMappings();
 
@@ -157,6 +162,9 @@ class CategoryToSingleViewPageUpdateWizard implements UpgradeWizardInterface, Ch
     protected function collectAndPrepareMigrationData(): void
     {
         $this->migratedProductPages = $this->fetchMigratedProductPages();
+        if (empty($this->migratedProductPages)) {
+            return;
+        }
         $this->productCategories = $this->fetchAllProductsAttachedToCategories();
 
         // Build array of categoryId to PageId mappings.
