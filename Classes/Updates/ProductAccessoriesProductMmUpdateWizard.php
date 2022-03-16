@@ -65,12 +65,7 @@ class ProductAccessoriesProductMmUpdateWizard implements UpgradeWizardInterface,
      */
     public function executeUpdate(): bool
     {
-        $mmRecords = $this->fetchProductAccessoriesProductMmRecords();
-        foreach ($mmRecords as $mmRecord) {
-            if (empty($mmRecord['tparm_uid_local'])) {
-                $this->createNewMmRelation($mmRecord);
-            }
-        }
+        $this->migrateAccessories();
 
         return $this->countMissingRecords() == 0;
     }
@@ -111,17 +106,30 @@ class ProductAccessoriesProductMmUpdateWizard implements UpgradeWizardInterface,
         $this->output = $output;
     }
 
-    protected function countMissingRecords(): int
+    /**
+     * Migrate related products.
+     *
+     * @return void
+     */
+    protected function migrateAccessories(): void
     {
-        $cnt = 0;
-        $mmRecords = $this->fetchProductAccessoriesProductMmRecords();
-        foreach ($mmRecords as $mmRecord) {
-            if (empty($mmRecord['tparm_uid_local'])) {
-                $cnt++;
-            }
+        $accessoriesMm = $this->fetchProductAccessoriesProductMmRecords();
+        $migrationData = [];
+
+        // Build array of related products per product.
+        foreach ($accessoriesMm as $row) {
+            $migrationData[$row['tpaam_uid_local']][] = 'tx_pxaproductmanager_domain_model_product_' . $row['tpaam_uid_foreign'];
         }
 
-        return $cnt;
+        // Update product related products.
+        foreach ($migrationData as $uid => $accessories) {
+            $this->updateProductAccessories($uid, $accessories);
+        }
+    }
+
+    protected function countMissingRecords(): int
+    {
+        return count($this->fetchProductAccessoriesProductMmRecords());
     }
 
     /**
@@ -157,11 +165,11 @@ class ProductAccessoriesProductMmUpdateWizard implements UpgradeWizardInterface,
                 $queryBuilder->expr()->andX(
                     $queryBuilder->expr()->eq(
                         'tparm.uid_local',
-                        $queryBuilder->quoteIdentifier('tpaam.uid_local')
+                        $queryBuilder->quoteIdentifier('tpaam.uid_foreign')
                     ),
                     $queryBuilder->expr()->eq(
                         'tparm.uid_foreign',
-                        $queryBuilder->quoteIdentifier('tpaam.uid_foreign')
+                        $queryBuilder->quoteIdentifier('tpaam.uid_local')
                     ),
                     $queryBuilder->expr()->eq(
                         'tparm.tablenames',
@@ -173,6 +181,37 @@ class ProductAccessoriesProductMmUpdateWizard implements UpgradeWizardInterface,
                     )
                 )
             )
+            ->join(
+                'tpaam',
+                'tx_pxaproductmanager_domain_model_product',
+                'prod1',
+                $queryBuilder->expr()->eq(
+                    'prod1.uid',
+                    $queryBuilder->quoteIdentifier('tpaam.uid_local')
+                )
+            )
+            ->join(
+                'tpaam',
+                'tx_pxaproductmanager_domain_model_product',
+                'prod2',
+                $queryBuilder->expr()->eq(
+                    'prod2.uid',
+                    $queryBuilder->quoteIdentifier('tpaam.uid_foreign')
+                )
+            )
+            ->where(
+                $queryBuilder->expr()->isNull(
+                    'tparm.uid_local'
+                ),
+                $queryBuilder->expr()->eq(
+                    'prod1.deleted',
+                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                ),
+                $queryBuilder->expr()->eq(
+                    'prod2.deleted',
+                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                )
+            )
             ->orderBy('tpaam.uid_local')
             ->addOrderBy('tpaam.sorting')
             ->execute()
@@ -181,19 +220,44 @@ class ProductAccessoriesProductMmUpdateWizard implements UpgradeWizardInterface,
         return $records ?? [];
     }
 
-    protected function createNewMmRelation(array $record): void
+    /**
+     * Update product accessories.
+     *
+     * @param string $uid
+     * @param array $accessories
+     * @return void
+     */
+    protected function updateProductAccessories(string $uid, array $accessories): void
     {
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_pxaproductmanager_product_product_mm');
-        $queryBuilder
-            ->insert('tx_pxaproductmanager_product_product_mm')
-            ->values([
-                'uid_local' => $record['tpaam_uid_local'],
-                'uid_foreign' => $record['tpaam_uid_foreign'],
-                'sorting' => $record['tpaam_sorting'],
-                'sorting_foreign' => $record['tpaam_sorting_foreign'],
-                'tablenames' => 'tx_pxaproductmanager_domain_model_product',
-                'fieldname' => 'accessories'
-            ])
-            ->execute();
+        $data['tx_pxaproductmanager_domain_model_product'][$uid]['accessories'] = implode(',', $accessories);
+
+        // echo PHP_EOL . ' data: ' . print_r($data, true) . PHP_EOL;
+        // Disable DataHandler hooks for processing this update.
+        if (!empty($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php'])) {
+            $dataHandlerHooks = $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php'];
+            unset($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php']);
+        }
+
+        if (!empty($GLOBALS['BE_USER'])) {
+            $adminUser = $GLOBALS['BE_USER'];
+        }
+        // Admin user is required to defined workspace state when working with DataHandler.
+        $fakeAdminUser = GeneralUtility::makeInstance(BackendUserAuthentication::class);
+        $fakeAdminUser->user = ['uid' => 0, 'username' => '_migration_', 'admin' => 1];
+        $fakeAdminUser->workspace = 0;
+        $GLOBALS['BE_USER'] = $fakeAdminUser;
+
+        // Process updates.
+        $dataHandler = GeneralUtility::makeInstance(DataHandler::class);
+        $dataHandler->start($data, []);
+        $dataHandler->process_datamap();
+
+        // Restore user and hooks.
+        if (!empty($adminUser)) {
+            $GLOBALS['BE_USER'] = $adminUser;
+        }
+        if (!empty($dataHandlerHooks)) {
+            $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php'] = $dataHandlerHooks;
+        }
     }
 }

@@ -22,3 +22,6 @@ $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/install']['update']['productmanag
 
 $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/install']['update']['productmanager_ProductSubProductsProductMmUpdateWizard']
     = Pixelant\PxaProductManagerUpgrade\Updates\ProductSubProductsProductMmUpdateWizard::class;
+
+$GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/install']['update']['productmanager_ProductRelatedProductsProductMmUpdateWizard']
+    = Pixelant\PxaProductManagerUpgrade\Updates\ProductRelatedProductsProductMmUpdateWizard::class;

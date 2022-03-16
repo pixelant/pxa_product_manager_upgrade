@@ -44,7 +44,7 @@ class ProductSubProductsProductMmUpdateWizard implements UpgradeWizardInterface,
      */
     public function getTitle(): string
     {
-        return 'Migrate Product SubProducts Product MM table update wizard.';
+        return 'Migrate Product SubProducts to Product Parent Product.';
     }
 
     /**
@@ -54,7 +54,7 @@ class ProductSubProductsProductMmUpdateWizard implements UpgradeWizardInterface,
      */
     public function getDescription(): string
     {
-        return 'Migrates Product SubProducts Product MM table.';
+        return 'Migrates Product SubProducts to Product Parent Product.';
     }
 
     /**
@@ -66,14 +66,17 @@ class ProductSubProductsProductMmUpdateWizard implements UpgradeWizardInterface,
      */
     public function executeUpdate(): bool
     {
-        $mmRecords = $this->fetchProductSubProductsProductMmRecords();
-        foreach ($mmRecords as $mmRecord) {
-            if (empty($mmRecord['tparm_uid_local'])) {
-                $this->createNewMmRelation($mmRecord);
-            }
+        // Not been able to test yet, upgraded project sub_products where not same product_type as parent.
+        // $this->migrateSubProducts();
+
+        $cnt = $this->countMissingRecords();
+        $notMigratable = count($this->fetchProductSubProductsProductMmRecords()) - $cnt;
+
+        if ($notMigratable > 0) {
+            $this->output->writeln('There are ' . $notMigratable . ' sub products that can\'t be migrated due to different product_types.');
         }
 
-        return $this->countMissingRecords() == 0;
+        return $cnt == 0;
     }
 
     /**
@@ -112,12 +115,38 @@ class ProductSubProductsProductMmUpdateWizard implements UpgradeWizardInterface,
         $this->output = $output;
     }
 
+    /**
+     * Migrate related products.
+     *
+     * @return void
+     */
+    protected function migrateSubProducts(): void
+    {
+        $mmRecords = $this->fetchProductSubProductsProductMmRecords();
+        foreach ($mmRecords as $mmRecord) {
+            if (empty($mmRecord['tparm_uid_local'])) {
+                $this->createNewMmRelation($mmRecord);
+            }
+        }
+
+        $subProducts = $this->fetchProductSubProductsProductMmRecords();
+        $migrationData = [];
+
+        // Build array of related products per product.
+        foreach ($subProducts as $row) {
+            // Don't set parent product unless product types are the same.
+            if ($row['parent_product_type'] === $row['child_product_type']) {
+                $this->updateProductParent($row['child_uid'], $row['parent_uid']);
+            }
+        }
+    }
+
     protected function countMissingRecords(): int
     {
         $cnt = 0;
         $mmRecords = $this->fetchProductSubProductsProductMmRecords();
         foreach ($mmRecords as $mmRecord) {
-            if (empty($mmRecord['tparm_uid_local'])) {
+            if ($mmRecord['parent_product_type'] === $mmRecord['child_product_type']) {
                 $cnt++;
             }
         }
@@ -133,45 +162,49 @@ class ProductSubProductsProductMmUpdateWizard implements UpgradeWizardInterface,
     protected function fetchProductSubProductsProductMmRecords(): array
     {
         $fields = [
-            'tpaam.uid_local as tpaam_uid_local',
-            'tpaam.uid_foreign as tpaam_uid_foreign',
-            'tpaam.sorting as tpaam_sorting',
-            'tpaam.sorting_foreign as tpaam_sorting_foreign',
-            'tparm.uid_local as tparm_uid_local',
-            'tparm.uid_foreign as tparm_uid_foreign',
-            'tparm.tablenames as tparm_tablenames',
-            'tparm.fieldname as tparm_fieldname',
-            'tparm.sorting as tparm_sorting',
-            'tparm.sorting_foreign as tparm_sorting_foreign'
+            'tpaam.uid_local as parent_uid',
+            'tpaam.uid_foreign as child_uid',
+            'parent.product_type as parent_product_type',
+	        'child.product_type as child_product_type',
         ];
 
         /** @var QueryBuilder $queryBuilder */
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
             ->getQueryBuilderForTable('tx_pxaproductmanager_product_subproducts_product_mm');
         $queryBuilder->getRestrictions()->removeAll();
+
         $records = $queryBuilder->select(...$fields)
             ->from('tx_pxaproductmanager_product_subproducts_product_mm', 'tpaam')
-            ->leftJoin(
+            ->join(
                 'tpaam',
-                'tx_pxaproductmanager_product_product_mm',
-                'tparm',
-                $queryBuilder->expr()->andX(
-                    $queryBuilder->expr()->eq(
-                        'tparm.uid_local',
-                        $queryBuilder->quoteIdentifier('tpaam.uid_local')
-                    ),
-                    $queryBuilder->expr()->eq(
-                        'tparm.uid_foreign',
-                        $queryBuilder->quoteIdentifier('tpaam.uid_foreign')
-                    ),
-                    $queryBuilder->expr()->eq(
-                        'tparm.tablenames',
-                        $queryBuilder->createNamedParameter('tx_pxaproductmanager_domain_model_product', \PDO::PARAM_STR)
-                    ),
-                    $queryBuilder->expr()->eq(
-                        'tparm.fieldname',
-                        $queryBuilder->createNamedParameter('related_products', \PDO::PARAM_STR)
-                    )
+                'tx_pxaproductmanager_domain_model_product',
+                'parent',
+                $queryBuilder->expr()->eq(
+                    'parent.uid',
+                    $queryBuilder->quoteIdentifier('tpaam.uid_local')
+                )
+            )
+            ->join(
+                'tpaam',
+                'tx_pxaproductmanager_domain_model_product',
+                'child',
+                $queryBuilder->expr()->eq(
+                    'child.uid',
+                    $queryBuilder->quoteIdentifier('tpaam.uid_foreign')
+                )
+            )
+            ->where(
+                $queryBuilder->expr()->eq(
+                    'parent.deleted',
+                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                ),
+                $queryBuilder->expr()->eq(
+                    'child.deleted',
+                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                ),
+                $queryBuilder->expr()->neq(
+                    'child.parent',
+                    $queryBuilder->quoteIdentifier('parent.uid')
                 )
             )
             ->orderBy('tpaam.uid_local')
@@ -182,19 +215,45 @@ class ProductSubProductsProductMmUpdateWizard implements UpgradeWizardInterface,
         return $records ?? [];
     }
 
-    protected function createNewMmRelation(array $record): void
+
+    /**
+     * Update product accessories.
+     *
+     * @param string $childId
+     * @param string $parentId
+     * @return void
+     */
+    protected function updateProductParent(string $childId, string $parentId): void
     {
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_pxaproductmanager_product_product_mm');
-        $queryBuilder
-            ->insert('tx_pxaproductmanager_product_product_mm')
-            ->values([
-                'uid_local' => $record['tpaam_uid_local'],
-                'uid_foreign' => $record['tpaam_uid_foreign'],
-                'sorting' => $record['tpaam_sorting'],
-                'sorting_foreign' => $record['tpaam_sorting_foreign'],
-                'tablenames' => 'tx_pxaproductmanager_domain_model_product',
-                'fieldname' => 'related_products'
-            ])
-            ->execute();
+        $data['tx_pxaproductmanager_domain_model_product'][$childId]['parent'] = 'tx_pxaproductmanager_domain_model_product_' . $parentId;
+
+        // echo PHP_EOL . ' data: ' . print_r($data, true) . PHP_EOL;
+        // Disable DataHandler hooks for processing this update.
+        if (!empty($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php'])) {
+            $dataHandlerHooks = $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php'];
+            unset($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php']);
+        }
+
+        if (!empty($GLOBALS['BE_USER'])) {
+            $adminUser = $GLOBALS['BE_USER'];
+        }
+        // Admin user is required to defined workspace state when working with DataHandler.
+        $fakeAdminUser = GeneralUtility::makeInstance(BackendUserAuthentication::class);
+        $fakeAdminUser->user = ['uid' => 0, 'username' => '_migration_', 'admin' => 1];
+        $fakeAdminUser->workspace = 0;
+        $GLOBALS['BE_USER'] = $fakeAdminUser;
+
+        // Process updates.
+        $dataHandler = GeneralUtility::makeInstance(DataHandler::class);
+        $dataHandler->start($data, []);
+        $dataHandler->process_datamap();
+
+        // Restore user and hooks.
+        if (!empty($adminUser)) {
+            $GLOBALS['BE_USER'] = $adminUser;
+        }
+        if (!empty($dataHandlerHooks)) {
+            $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php'] = $dataHandlerHooks;
+        }
     }
 }
